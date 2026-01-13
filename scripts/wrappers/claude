@@ -9,8 +9,8 @@ STATE_DIR="${HOME}/.takopi-docker"
 TIMESTAMP_FILE="${STATE_DIR}/last-update-${AGENT}"
 UPDATE_INTERVAL=$((24 * 60 * 60))  # 24 hours in seconds
 
-# Claude Code installs to ~/.claude/local/bin/claude
-REAL_BINARY="${HOME}/.claude/local/bin/claude"
+# Claude Code installs to ~/.local/bin/claude
+REAL_BINARY="${HOME}/.local/bin/claude"
 
 # Create state directory if needed
 mkdir -p "${STATE_DIR}"
