@@ -34,6 +34,11 @@ find_binary() {
 
 # Function to install OpenCode
 install_agent() {
+    ARCH=$(uname -m)
+    if [[ "${ARCH}" != "x86_64" && "${ARCH}" != "amd64" ]]; then
+        echo "[takopi-docker] Error: OpenCode is not available for ${ARCH} architecture" >&2
+        exit 1
+    fi
     echo "[takopi-docker] Installing OpenCode..."
     curl -fsSL https://opencode.ai/install | bash
     touch "${TIMESTAMP_FILE}"

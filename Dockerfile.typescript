@@ -94,8 +94,13 @@ RUN if [ "$AGENT" = "all" ] || [ "$AGENT" = "codex" ]; then \
     fi
 
 RUN if [ "$AGENT" = "all" ] || [ "$AGENT" = "opencode" ]; then \
-        curl -fsSL https://opencode.ai/install | bash && \
-        touch ~/.takopi-docker/last-update-opencode; \
+        ARCH=$(uname -m) && \
+        if [ "$ARCH" = "x86_64" ] || [ "$ARCH" = "amd64" ]; then \
+            curl -fsSL https://opencode.ai/install | bash && \
+            touch ~/.takopi-docker/last-update-opencode; \
+        else \
+            echo "OpenCode not available for $ARCH, skipping..."; \
+        fi \
     fi
 
 RUN if [ "$AGENT" = "all" ] || [ "$AGENT" = "pi" ]; then \
