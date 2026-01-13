@@ -36,11 +36,9 @@ find_binary() {
 install_agent() {
     ARCH=$(uname -m)
     if [[ "${ARCH}" != "x86_64" && "${ARCH}" != "amd64" ]]; then
-        echo "[takopi-docker] Error: OpenCode is not available for ${ARCH} architecture" >&2
         exit 1
     fi
-    echo "[takopi-docker] Installing OpenCode..."
-    curl -fsSL https://opencode.ai/install | bash
+    curl -fsSL https://opencode.ai/install | bash >/dev/null 2>&1
     touch "${TIMESTAMP_FILE}"
 }
 
@@ -70,15 +68,11 @@ needs_update() {
 BINARY_PATH=""
 if ! BINARY_PATH=$(find_binary); then
     install_agent
-    BINARY_PATH=$(find_binary) || {
-        echo "[takopi-docker] Error: Could not find opencode after installation" >&2
-        exit 1
-    }
+    BINARY_PATH=$(find_binary) || exit 1
 fi
 
 # Check for updates in background (non-blocking)
 if needs_update; then
-    echo "[takopi-docker] Checking for OpenCode updates in background..."
     update_agent
 fi
 

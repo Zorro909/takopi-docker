@@ -38,8 +38,7 @@ find_binary() {
 
 # Function to install Codex
 install_agent() {
-    echo "[takopi-docker] Installing Codex CLI..."
-    npm install -g @openai/codex
+    npm install -g @openai/codex >/dev/null 2>&1
     touch "${TIMESTAMP_FILE}"
 }
 
@@ -69,15 +68,11 @@ needs_update() {
 BINARY_PATH=""
 if ! BINARY_PATH=$(find_binary); then
     install_agent
-    BINARY_PATH=$(find_binary) || {
-        echo "[takopi-docker] Error: Could not find codex after installation" >&2
-        exit 1
-    }
+    BINARY_PATH=$(find_binary) || exit 1
 fi
 
 # Check for updates in background (non-blocking)
 if needs_update; then
-    echo "[takopi-docker] Checking for Codex updates in background..."
     update_agent
 fi
 

@@ -17,8 +17,7 @@ mkdir -p "${STATE_DIR}"
 
 # Function to install Claude Code
 install_agent() {
-    echo "[takopi-docker] Installing Claude Code..."
-    curl -fsSL https://claude.ai/install.sh | bash
+    curl -fsSL https://claude.ai/install.sh | bash >/dev/null 2>&1
     touch "${TIMESTAMP_FILE}"
 }
 
@@ -51,7 +50,6 @@ fi
 
 # Check for updates in background (non-blocking)
 if needs_update; then
-    echo "[takopi-docker] Checking for Claude Code updates in background..."
     update_agent
 fi
 
