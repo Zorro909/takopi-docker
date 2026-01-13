@@ -39,14 +39,14 @@ find_binary() {
 # Function to install Codex
 install_agent() {
     echo "[takopi-docker] Installing Codex CLI..."
-    sudo npm install -g @openai/codex
+    npm install -g @openai/codex
     touch "${TIMESTAMP_FILE}"
 }
 
 # Function to update Codex in background
 update_agent() {
     (
-        sudo npm update -g @openai/codex >/dev/null 2>&1
+        npm update -g @openai/codex >/dev/null 2>&1
         touch "${TIMESTAMP_FILE}"
     ) &
     disown

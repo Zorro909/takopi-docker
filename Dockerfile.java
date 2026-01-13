@@ -89,8 +89,11 @@ RUN mkdir -p /mnt/auth && chown takopi:takopi /mnt/auth
 USER takopi
 WORKDIR /home/takopi
 
-# Create necessary directories
-RUN mkdir -p ~/.takopi-docker ~/.local/bin ~/.local/share ~/.config ~/.m2 ~/.gradle
+# Create necessary directories and configure npm for user-local installs
+RUN mkdir -p ~/.takopi-docker ~/.local/bin ~/.local/share ~/.config ~/.m2 ~/.gradle ~/.npm-global \
+    && npm config set prefix ~/.npm-global
+
+ENV PATH="/home/takopi/.npm-global/bin:${PATH}"
 
 # Install Python packages for configurator
 RUN pip install --user --no-cache-dir rich questionary
@@ -102,7 +105,7 @@ RUN if [ "$AGENT" = "all" ] || [ "$AGENT" = "claude" ]; then \
     fi
 
 RUN if [ "$AGENT" = "all" ] || [ "$AGENT" = "codex" ]; then \
-        sudo npm install -g @openai/codex && \
+        npm install -g @openai/codex && \
         touch ~/.takopi-docker/last-update-codex; \
     fi
 
@@ -112,7 +115,7 @@ RUN if [ "$AGENT" = "all" ] || [ "$AGENT" = "opencode" ]; then \
     fi
 
 RUN if [ "$AGENT" = "all" ] || [ "$AGENT" = "pi" ]; then \
-        sudo npm install -g @mariozechner/pi-coding-agent && \
+        npm install -g @mariozechner/pi-coding-agent && \
         touch ~/.takopi-docker/last-update-pi; \
     fi
 
