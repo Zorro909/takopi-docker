@@ -1,0 +1,109 @@
+# Docker Compose configuration for takopi-docker
+# Use this for local development and testing
+
+services:
+  # Python variant with all agents (default)
+  takopi-python:
+    build:
+      context: .
+      dockerfile: Dockerfile.python
+      args:
+        AGENT: all
+    volumes:
+      # Authentication mounts
+      - ${HOME}/.claude:/mnt/auth/claude:ro
+      - ${HOME}/.codex:/mnt/auth/codex:ro
+      - ${HOME}/.config/opencode:/mnt/auth/opencode/config:ro
+      - ${HOME}/.local/share/opencode:/mnt/auth/opencode/data:ro
+      - ${HOME}/.pi:/mnt/auth/pi:ro
+      # Takopi configuration (read-write)
+      - takopi-config:/home/takopi/.takopi
+      # Project directory
+      - ./projects:/home/takopi/projects
+    environment:
+      - TAKOPI_SYS_INSTALL=
+      - TAKOPI_PLUGIN_INSTALL=
+    stdin_open: true
+    tty: true
+    network_mode: host
+
+  # TypeScript variant with all agents
+  takopi-typescript:
+    build:
+      context: .
+      dockerfile: Dockerfile.typescript
+      args:
+        AGENT: all
+    volumes:
+      - ${HOME}/.claude:/mnt/auth/claude:ro
+      - ${HOME}/.codex:/mnt/auth/codex:ro
+      - ${HOME}/.config/opencode:/mnt/auth/opencode/config:ro
+      - ${HOME}/.local/share/opencode:/mnt/auth/opencode/data:ro
+      - ${HOME}/.pi:/mnt/auth/pi:ro
+      - takopi-config:/home/takopi/.takopi
+      - ./projects:/home/takopi/projects
+    environment:
+      - TAKOPI_SYS_INSTALL=
+      - TAKOPI_PLUGIN_INSTALL=
+    stdin_open: true
+    tty: true
+    network_mode: host
+    profiles:
+      - typescript
+
+  # Java variant with all agents
+  takopi-java:
+    build:
+      context: .
+      dockerfile: Dockerfile.java
+      args:
+        AGENT: all
+    volumes:
+      - ${HOME}/.claude:/mnt/auth/claude:ro
+      - ${HOME}/.codex:/mnt/auth/codex:ro
+      - ${HOME}/.config/opencode:/mnt/auth/opencode/config:ro
+      - ${HOME}/.local/share/opencode:/mnt/auth/opencode/data:ro
+      - ${HOME}/.pi:/mnt/auth/pi:ro
+      - takopi-config:/home/takopi/.takopi
+      - ./projects:/home/takopi/projects
+      # Java-specific volumes
+      - maven-cache:/home/takopi/.m2
+      - gradle-cache:/home/takopi/.gradle
+    environment:
+      - TAKOPI_SYS_INSTALL=
+      - TAKOPI_PLUGIN_INSTALL=
+    stdin_open: true
+    tty: true
+    network_mode: host
+    profiles:
+      - java
+
+  # Configurator-only mode (no auto takopi serve)
+  configurator:
+    build:
+      context: .
+      dockerfile: Dockerfile.python
+      args:
+        AGENT: all
+    command: ["/opt/takopi-docker/scripts/configurator.py"]
+    volumes:
+      - ${HOME}/.claude:/mnt/auth/claude:ro
+      - ${HOME}/.codex:/mnt/auth/codex:ro
+      - ${HOME}/.config/opencode:/mnt/auth/opencode/config:ro
+      - ${HOME}/.local/share/opencode:/mnt/auth/opencode/data:ro
+      - ${HOME}/.pi:/mnt/auth/pi:ro
+      - takopi-config:/home/takopi/.takopi
+      - ./projects:/home/takopi/projects
+    stdin_open: true
+    tty: true
+    network_mode: host
+    profiles:
+      - configure
+
+volumes:
+  takopi-config:
+    name: takopi-config
+  maven-cache:
+    name: takopi-maven-cache
+  gradle-cache:
+    name: takopi-gradle-cache

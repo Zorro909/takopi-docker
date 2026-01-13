@@ -1,0 +1,80 @@
+#!/bin/bash
+# Wrapper script for Pi Coding Agent
+# Installs on first use, checks for updates in background
+
+set -euo pipefail
+
+AGENT="pi"
+STATE_DIR="${HOME}/.takopi-docker"
+TIMESTAMP_FILE="${STATE_DIR}/last-update-${AGENT}"
+UPDATE_INTERVAL=$((24 * 60 * 60))  # 24 hours in seconds
+
+# Create state directory if needed
+mkdir -p "${STATE_DIR}"
+
+# Function to find the real binary
+find_binary() {
+    # Check npm global bin
+    local npm_bin
+    npm_bin="$(npm bin -g 2>/dev/null || echo "")"
+    if [[ -n "${npm_bin}" && -x "${npm_bin}/pi" ]]; then
+        echo "${npm_bin}/pi"
+        return 0
+    fi
+    # Check common locations
+    for loc in /usr/local/bin/pi /usr/bin/pi "${HOME}/.npm-global/bin/pi"; do
+        if [[ -x "${loc}" ]]; then
+            echo "${loc}"
+            return 0
+        fi
+    done
+    return 1
+}
+
+# Function to install Pi
+install_agent() {
+    echo "[takopi-docker] Installing Pi Coding Agent..."
+    sudo npm install -g @mariozechner/pi-coding-agent
+    touch "${TIMESTAMP_FILE}"
+}
+
+# Function to update Pi in background
+update_agent() {
+    (
+        sudo npm update -g @mariozechner/pi-coding-agent >/dev/null 2>&1
+        touch "${TIMESTAMP_FILE}"
+    ) &
+    disown
+}
+
+# Function to check if update needed
+needs_update() {
+    if [[ ! -f "${TIMESTAMP_FILE}" ]]; then
+        return 0
+    fi
+    local last_update
+    last_update=$(stat -c %Y "${TIMESTAMP_FILE}" 2>/dev/null || echo 0)
+    local now
+    now=$(date +%s)
+    local age=$((now - last_update))
+    [[ ${age} -gt ${UPDATE_INTERVAL} ]]
+}
+
+# Install if not present
+BINARY_PATH=""
+if ! BINARY_PATH=$(find_binary); then
+    install_agent
+    BINARY_PATH=$(find_binary) || {
+        echo "[takopi-docker] Error: Could not find pi after installation" >&2
+        exit 1
+    }
+fi
+
+# Check for updates in background (non-blocking)
+if needs_update; then
+    echo "[takopi-docker] Checking for Pi updates in background..."
+    update_agent
+fi
+
+# Execute the real binary
+exec "${BINARY_PATH}" "$@"

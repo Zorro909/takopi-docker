@@ -1,0 +1,81 @@
+#!/bin/bash
+# Wrapper script for OpenCode CLI
+# Installs on first use, checks for updates in background
+
+set -euo pipefail
+
+AGENT="opencode"
+STATE_DIR="${HOME}/.takopi-docker"
+TIMESTAMP_FILE="${STATE_DIR}/last-update-${AGENT}"
+UPDATE_INTERVAL=$((24 * 60 * 60))  # 24 hours in seconds
+
+# OpenCode installs to ~/.local/bin/opencode by default
+REAL_BINARY="${HOME}/.local/bin/opencode"
+
+# Create state directory if needed
+mkdir -p "${STATE_DIR}"
+
+# Function to find the real binary
+find_binary() {
+    # Check default location
+    if [[ -x "${REAL_BINARY}" ]]; then
+        echo "${REAL_BINARY}"
+        return 0
+    fi
+    # Check PATH locations
+    for loc in /usr/local/bin/opencode /usr/bin/opencode; do
+        if [[ -x "${loc}" ]]; then
+            echo "${loc}"
+            return 0
+        fi
+    done
+    return 1
+}
+
+# Function to install OpenCode
+install_agent() {
+    echo "[takopi-docker] Installing OpenCode..."
+    curl -fsSL https://opencode.ai/install | bash
+    touch "${TIMESTAMP_FILE}"
+}
+
+# Function to update OpenCode in background
+update_agent() {
+    (
+        curl -fsSL https://opencode.ai/install | bash >/dev/null 2>&1
+        touch "${TIMESTAMP_FILE}"
+    ) &
+    disown
+}
+
+# Function to check if update needed
+needs_update() {
+    if [[ ! -f "${TIMESTAMP_FILE}" ]]; then
+        return 0
+    fi
+    local last_update
+    last_update=$(stat -c %Y "${TIMESTAMP_FILE}" 2>/dev/null || echo 0)
+    local now
+    now=$(date +%s)
+    local age=$((now - last_update))
+    [[ ${age} -gt ${UPDATE_INTERVAL} ]]
+}
+
+# Install if not present
+BINARY_PATH=""
+if ! BINARY_PATH=$(find_binary); then
+    install_agent
+    BINARY_PATH=$(find_binary) || {
+        echo "[takopi-docker] Error: Could not find opencode after installation" >&2
+        exit 1
+    }
+fi
+
+# Check for updates in background (non-blocking)
+if needs_update; then
+    echo "[takopi-docker] Checking for OpenCode updates in background..."
+    update_agent
+fi
+
+# Execute the real binary
+exec "${BINARY_PATH}" "$@"

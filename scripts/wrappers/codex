@@ -1,0 +1,85 @@
+#!/bin/bash
+# Wrapper script for Codex CLI (OpenAI)
+# Installs on first use, checks for updates in background
+
+set -euo pipefail
+
+AGENT="codex"
+STATE_DIR="${HOME}/.takopi-docker"
+TIMESTAMP_FILE="${STATE_DIR}/last-update-${AGENT}"
+UPDATE_INTERVAL=$((24 * 60 * 60))  # 24 hours in seconds
+
+# Codex installs via npm globally
+REAL_BINARY="$(npm root -g)/@openai/codex/bin/codex.js"
+# Fallback to npx-style execution
+NPM_BINARY="codex"
+
+# Create state directory if needed
+mkdir -p "${STATE_DIR}"
+
+# Function to find the real binary
+find_binary() {
+    # Check npm global bin
+    local npm_bin
+    npm_bin="$(npm bin -g 2>/dev/null || echo "")"
+    if [[ -n "${npm_bin}" && -x "${npm_bin}/codex" ]]; then
+        echo "${npm_bin}/codex"
+        return 0
+    fi
+    # Check common locations
+    for loc in /usr/local/bin/codex /usr/bin/codex "${HOME}/.npm-global/bin/codex"; do
+        if [[ -x "${loc}" ]]; then
+            echo "${loc}"
+            return 0
+        fi
+    done
+    return 1
+}
+
+# Function to install Codex
+install_agent() {
+    echo "[takopi-docker] Installing Codex CLI..."
+    sudo npm install -g @openai/codex
+    touch "${TIMESTAMP_FILE}"
+}
+
+# Function to update Codex in background
+update_agent() {
+    (
+        sudo npm update -g @openai/codex >/dev/null 2>&1
+        touch "${TIMESTAMP_FILE}"
+    ) &
+    disown
+}
+
+# Function to check if update needed
+needs_update() {
+    if [[ ! -f "${TIMESTAMP_FILE}" ]]; then
+        return 0
+    fi
+    local last_update
+    last_update=$(stat -c %Y "${TIMESTAMP_FILE}" 2>/dev/null || echo 0)
+    local now
+    now=$(date +%s)
+    local age=$((now - last_update))
+    [[ ${age} -gt ${UPDATE_INTERVAL} ]]
+}
+
+# Install if not present
+BINARY_PATH=""
+if ! BINARY_PATH=$(find_binary); then
+    install_agent
+    BINARY_PATH=$(find_binary) || {
+        echo "[takopi-docker] Error: Could not find codex after installation" >&2
+        exit 1
+    }
+fi
+
+# Check for updates in background (non-blocking)
+if needs_update; then
+    echo "[takopi-docker] Checking for Codex updates in background..."
+    update_agent
+fi
+
+# Execute the real binary
+exec "${BINARY_PATH}" "$@"

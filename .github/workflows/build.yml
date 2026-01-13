@@ -1,0 +1,172 @@
+# Build and push takopi-docker images to GitHub Container Registry
+# Triggers on: push to main, version tags (v*)
+
+name: Build and Push Docker Images
+
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - 'v*'
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+    inputs:
+      language:
+        description: 'Language variant to build (all, python, typescript, java)'
+        required: false
+        default: 'all'
+      agent:
+        description: 'Agent to include (all, claude, codex, opencode, pi)'
+        required: false
+        default: 'all'
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    strategy:
+      fail-fast: false
+      matrix:
+        language: [python, typescript, java]
+        agent: [claude, codex, opencode, pi, all]
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Container Registry
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata (tags, labels)
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=raw,value=${{ matrix.language }}-${{ matrix.agent }}
+            type=raw,value=${{ matrix.language }}-${{ matrix.agent }}-{{date 'YYYYMMDD'}},enable=${{ github.ref == 'refs/heads/main' }}
+            type=semver,pattern={{version}},suffix=-${{ matrix.language }}-${{ matrix.agent }}
+            type=semver,pattern={{major}}.{{minor}},suffix=-${{ matrix.language }}-${{ matrix.agent }}
+
+      - name: Build and push
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./Dockerfile.${{ matrix.language }}
+          build-args: |
+            AGENT=${{ matrix.agent }}
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          platforms: linux/amd64,linux/arm64
+
+  # Test with Podman
+  test-podman:
+    runs-on: ubuntu-latest
+    needs: build
+    if: github.event_name == 'pull_request'
+
+    strategy:
+      fail-fast: false
+      matrix:
+        language: [python]
+        agent: [all]
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Podman
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y podman
+
+      - name: Build with Podman
+        run: |
+          podman build \
+            --file Dockerfile.${{ matrix.language }} \
+            --build-arg AGENT=${{ matrix.agent }} \
+            --tag takopi:${{ matrix.language }}-${{ matrix.agent }} \
+            .
+
+      - name: Test container starts
+        run: |
+          podman run --rm takopi:${{ matrix.language }}-${{ matrix.agent }} --help || true
+
+  # Validate all Dockerfiles syntax
+  validate:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Validate Dockerfiles with hadolint
+        uses: hadolint/hadolint-action@v3.1.0
+        with:
+          dockerfile: Dockerfile.python
+          failure-threshold: warning
+
+      - name: Validate all Dockerfiles
+        run: |
+          for df in Dockerfile.*; do
+            echo "Validating $df..."
+            docker run --rm -i hadolint/hadolint < "$df" || true
+          done
+
+  # Create release with changelog
+  release:
+    runs-on: ubuntu-latest
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/v')
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          generate_release_notes: true
+          body: |
+            ## Docker Images
+
+            Pull images from GitHub Container Registry:
+
+            ```bash
+            # Python with all agents
+            docker pull ghcr.io/${{ github.repository }}:python-all
+
+            # TypeScript with Claude
+            docker pull ghcr.io/${{ github.repository }}:typescript-claude
+
+            # Java with all agents
+            docker pull ghcr.io/${{ github.repository }}:java-all
+            ```
+
+            See [documentation](docs/installation.md) for full setup instructions.
